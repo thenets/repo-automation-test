@@ -1,0 +1,46 @@
+---
+# Complete Repository Automation - Generated from examples/comprehensive-usage.yml
+# This workflow demonstrates the unified GitHub Action replacing 4 individual keeper workflows
+
+name: Complete Repository Automation
+on:
+  issues:
+    types: [opened, labeled, unlabeled]
+  pull_request:
+    types: [opened, synchronize, edited, ready_for_review, labeled, unlabeled]
+  workflow_run:
+    workflows: ["Keeper: trigger"]
+    types: [completed]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC for stale detection
+  workflow_dispatch:  # Manual trigger for testing
+
+permissions:
+  issues: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  repository-automation:
+    runs-on: ubuntu-latest
+    if: github.repository == 'dednets/repo-automation-test'
+    
+    steps:
+      - name: Complete Repository Automation
+        uses: thenets/repo-automation@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          custom-github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          
+          # Stale detection configuration (enables stale detection)
+          stale-days: 1
+          
+          # Release/backport labeling configuration (enables auto-labeling)
+          accepted-releases: '["1.0", "1.1", "1.2", "2.0", "2.1", "devel"]'
+          accepted-backports: '["1.0", "1.1", "1.2", "2.0", "2.1", "2.2"]'
+          
+          # Feature branch automation (enables feature branch labeling)
+          enable-feature-branch: true
+          
+          # Optional: dry-run mode for testing
+          dry-run: false
