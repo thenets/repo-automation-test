@@ -1,0 +1,84 @@
+name: 'Repository Triage Automation'
+description: 'Automated triage labeling for GitHub repositories'
+author: 'thenets'
+branding:
+  icon: 'tag'
+  color: 'blue'
+
+inputs:
+  # Core inputs (always used)
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+  custom-github-token:
+    description: 'Custom token for external contributor support (fallback to github-token if not provided)'
+    required: false
+  dry-run:
+    description: 'Preview mode without making changes (true/false)'
+    required: false
+    default: 'false'
+  
+  # Feature-enabling inputs (optional - presence enables features)
+  accepted-releases:
+    description: 'JSON array of accepted release versions (e.g., ["1.0", "2.0", "devel"]) - enables release labeling'
+    required: false
+  accepted-backports:
+    description: 'JSON array of accepted backport versions (e.g., ["1.0", "2.0"]) - enables backport labeling'
+    required: false
+  enable-feature-branch:
+    description: 'Enable feature branch automation (true/false) - parses needs_feature_branch from YAML'
+    required: false
+    default: 'false'
+  stale-days:
+    description: 'Days before marking PRs as stale (number) - enables stale detection'
+    required: false
+
+outputs:
+  labels-added:
+    description: 'JSON array of labels that were added'
+  actions-taken:
+    description: 'Summary of all actions performed'
+  features-enabled:
+    description: 'JSON array of features that were enabled based on inputs'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Triage Automation
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.custom-github-token || inputs.github-token }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Load the triage management module
+          const triageModulePath = path.join('${{ github.action_path }}', 'src', 'triage-management.js');
+          const triageModule = require(triageModulePath);
+          
+          // Configure options with feature detection
+          const options = {
+            dryRun: '${{ inputs.dry-run }}' === 'true',
+            githubToken: '${{ inputs.custom-github-token || inputs.github-token }}',
+            acceptedReleases: '${{ inputs.accepted-releases }}' ? JSON.parse('${{ inputs.accepted-releases }}') : null,
+            acceptedBackports: '${{ inputs.accepted-backports }}' ? JSON.parse('${{ inputs.accepted-backports }}') : null,
+            enableFeatureBranch: '${{ inputs.enable-feature-branch }}' === 'true',
+            staleDays: '${{ inputs.stale-days }}' ? parseInt('${{ inputs.stale-days }}') : null
+          };
+          
+          try {
+            // Execute triage automation
+            const result = await triageModule.execute(context, github, options);
+            
+            // Set outputs
+            core.setOutput('labels-added', JSON.stringify(result.labelsAdded || []));
+            core.setOutput('actions-taken', result.summary || 'No actions taken');
+            core.setOutput('features-enabled', JSON.stringify(result.featuresEnabled || []));
+            
+            console.log('✅ Triage automation completed successfully');
+            console.log(`📋 Summary: ${result.summary}`);
+            
+          } catch (error) {
+            console.error('❌ Triage automation failed:', error.message);
+            throw error;
+          }
