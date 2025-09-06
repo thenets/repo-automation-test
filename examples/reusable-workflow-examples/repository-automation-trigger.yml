@@ -1,0 +1,20 @@
+---
+name: "Repository Automation: Trigger"
+# This workflow uses the reusable workflow from thenets/repo-automation
+# No need to copy any source files - everything is consumed remotely!
+
+on:
+  issues:
+    types: [opened, labeled, unlabeled]
+  pull_request:
+    types: [opened, synchronize, edited, ready_for_review, labeled, unlabeled]
+
+jobs:
+  trigger:
+    uses: thenets/repo-automation/.github/workflows/triage-automation-trigger.yml@main
+
+# That's it! The reusable workflow handles:
+# - Metadata collection from PRs and issues
+# - Artifact creation and upload
+# - Fork compatibility with minimal permissions
+# - Automatic triggering of the main automation workflow
