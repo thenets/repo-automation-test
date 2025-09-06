@@ -1,0 +1,26 @@
+---
+name: "Repository Automation: Trigger"
+# Simplified trigger workflow - just initiates workflow_run event for main automation
+
+on:
+  issues:
+    types: [opened, labeled, unlabeled]
+  pull_request:
+    types: [opened, synchronize, edited, ready_for_review, labeled, unlabeled]
+
+# No special permissions required - this runs on forks with default GITHUB_TOKEN
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger Main Automation
+        run: |
+          echo "🚀 Triggering main automation workflow"
+          echo "Event: ${{ github.event_name }}.${{ github.event.action }}"
+          echo "Number: ${{ github.event.pull_request.number || github.event.issue.number }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "✅ Workflow_run event will be triggered automatically"
