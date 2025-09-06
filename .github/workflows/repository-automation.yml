@@ -1,0 +1,44 @@
+---
+name: Complete Repository Automation
+# This workflow uses the reusable workflow from thenets/repo-automation
+# No need to copy any source files - everything is consumed remotely!
+
+on:
+  # Fork compatibility via workflow_run (triggered by repository-automation-trigger.yml)
+  workflow_run:
+    workflows: ["Repository Automation: Trigger"]
+    types: [completed]
+  
+  # Scheduled events for stale detection
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: 'PR number to process (optional)'
+        required: false
+        type: string
+      dry-run:
+        description: 'Dry run mode (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  automation:
+    # IMPORTANT: This repository reference gets updated by the test setup
+    if: github.repository == 'dednets/repo-automation-test'
+    uses: thenets/repo-automation/.github/workflows/triage-automation.yml@main
+    with:
+      dry-run: ${{ github.event.inputs.dry-run || 'false' }}
+      pr-number: ${{ github.event.inputs.pr-number }}
+      
+      # Enable all features for comprehensive testing
+      accepted-releases: '["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "2.0", "2.1", "2.2", "devel", "main"]'
+      accepted-backports: '["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "2.0", "2.1", "2.2", "main"]'
+      enable-feature-branch: true
+      stale-days: 1
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CUSTOM_GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
