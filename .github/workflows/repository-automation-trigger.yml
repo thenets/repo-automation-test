@@ -1,0 +1,154 @@
+---
+name: "Repository Automation: Trigger"
+# This workflow collects PR/issue metadata for external contributors (forks)
+# It runs with minimal permissions and uploads data for the main automation workflow
+
+on:
+  issues:
+    types: [opened, labeled, unlabeled]
+  pull_request:
+    types: [opened, synchronize, edited, ready_for_review, labeled, unlabeled]
+
+# No special permissions required - this runs on forks with default GITHUB_TOKEN
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  collect-metadata:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Collect PR Metadata
+        if: github.event_name == 'pull_request'
+        id: collect-pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            
+            // Collect comprehensive PR metadata
+            const metadata = {
+              type: 'pull_request',
+              event_action: context.payload.action,
+              number: pr.number,
+              title: pr.title,
+              body: pr.body || '',
+              state: pr.state,
+              draft: pr.draft,
+              head: {
+                ref: pr.head.ref,
+                sha: pr.head.sha,
+                repo: {
+                  name: pr.head.repo.name,
+                  owner: pr.head.repo.owner.login,
+                  full_name: pr.head.repo.full_name
+                }
+              },
+              base: {
+                ref: pr.base.ref,
+                sha: pr.base.sha,
+                repo: {
+                  name: pr.base.repo.name,
+                  owner: pr.base.repo.owner.login,
+                  full_name: pr.base.repo.full_name
+                }
+              },
+              labels: pr.labels.map(label => ({
+                name: label.name,
+                color: label.color,
+                description: label.description
+              })),
+              author: {
+                login: pr.user.login,
+                id: pr.user.id
+              },
+              created_at: pr.created_at,
+              updated_at: pr.updated_at,
+              is_cross_repository: pr.head.repo.full_name !== pr.base.repo.full_name
+            };
+            
+            // Store metadata as output
+            core.setOutput('metadata', JSON.stringify(metadata));
+            
+            console.log(`📋 Collected PR #${pr.number} metadata:`);
+            console.log(`   Title: ${pr.title}`);
+            console.log(`   Author: ${pr.user.login}`);
+            console.log(`   Head: ${pr.head.repo.full_name}:${pr.head.ref}`);
+            console.log(`   Base: ${pr.base.repo.full_name}:${pr.base.ref}`);
+            console.log(`   Labels: ${pr.labels.map(l => l.name).join(', ') || 'none'}`);
+            console.log(`   Cross-repo: ${pr.head.repo.full_name !== pr.base.repo.full_name}`);
+
+      - name: Collect Issue Metadata
+        if: github.event_name == 'issues'
+        id: collect-issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            
+            // Collect comprehensive issue metadata
+            const metadata = {
+              type: 'issue',
+              event_action: context.payload.action,
+              number: issue.number,
+              title: issue.title,
+              body: issue.body || '',
+              state: issue.state,
+              labels: issue.labels.map(label => ({
+                name: label.name,
+                color: label.color,
+                description: label.description
+              })),
+              author: {
+                login: issue.user.login,
+                id: issue.user.id
+              },
+              created_at: issue.created_at,
+              updated_at: issue.updated_at
+            };
+            
+            // Store metadata as output
+            core.setOutput('metadata', JSON.stringify(metadata));
+            
+            console.log(`📋 Collected Issue #${issue.number} metadata:`);
+            console.log(`   Title: ${issue.title}`);
+            console.log(`   Author: ${issue.user.login}`);
+            console.log(`   Labels: ${issue.labels.map(l => l.name).join(', ') || 'none'}`);
+
+      - name: Create Metadata File
+        env:
+          METADATA: ${{ steps.collect-pr.outputs.metadata || steps.collect-issue.outputs.metadata }}
+        run: |
+          echo "$METADATA" > metadata.json
+          echo "📦 Created metadata file for artifact upload"
+
+      - name: Store Metadata as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-metadata
+          path: metadata.json
+          retention-days: 1
+
+      - name: Summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const eventType = context.eventName;
+            const action = context.payload.action;
+            const number = context.payload.pull_request?.number || context.payload.issue?.number;
+            
+            console.log(`✅ Trigger workflow completed successfully`);
+            console.log(`📊 Event: ${eventType}.${action}`);
+            console.log(`🔢 Number: ${number}`);
+            console.log(`🎯 Next: Main repository will process this via workflow_run event`);
+            
+            // Set job summary
+            await core.summary
+              .addHeading('🚀 Repository Automation: Trigger')
+              .addRaw(`Successfully collected metadata for ${eventType} #${number}`)
+              .addRaw(`\n\n**Event**: \`${eventType}.${action}\``)
+              .addRaw(`\n**Repository**: \`${context.repo.owner}/${context.repo.repo}\``)
+              .addRaw('\n\n**Next Step**: Main repository automation will process this data via `workflow_run` event.')
+              .write();
