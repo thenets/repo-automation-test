@@ -1,0 +1,121 @@
+---
+name: Complete Repository Automation
+# Fork-compatible automation for repository triage, labeling, and management
+
+on:
+  # Fork compatibility via workflow_run (triggered by repository-automation-trigger.yml)
+  workflow_run:
+    workflows: ["Repository Automation: Trigger"]
+    types: [completed]
+  
+  # Scheduled events for stale detection
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: 'PR number to process (optional)'
+        required: false
+        type: string
+      dry-run:
+        description: 'Dry run mode (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  issues: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  automation:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check Repository Context
+        id: check-context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isMainRepo = context.repo.owner === 'dednets' && context.repo.repo === 'repo-automation-test';
+            const eventType = context.eventName;
+            const isFork = !isMainRepo;
+            
+            console.log(`Repository: ${context.repo.owner}/${context.repo.repo}`);
+            console.log(`Is main repository: ${isMainRepo}`);
+            console.log(`Is fork: ${isFork}`);
+            console.log(`Event: ${eventType}`);
+            
+            if (isFork) {
+              console.log('🔄 Invoked from a fork. This will trigger the main automation later.');
+              await core.summary
+                .addHeading('🔄 Fork Repository Automation')
+                .addRaw('**Status**: Invoked from a fork repository')
+                .addRaw('\n**Action**: This will trigger the main automation workflow in the target repository')
+                .addRaw(`\n**Repository**: \`${context.repo.owner}/${context.repo.repo}\``)
+                .addRaw(`\n**Event**: \`${eventType}\``)
+                .write();
+              
+              core.setOutput('should-run-automation', 'false');
+              core.setOutput('is-fork', 'true');
+            } else {
+              console.log('🎯 Running on main repository, proceeding with automation');
+              core.setOutput('should-run-automation', 'true');
+              core.setOutput('is-fork', 'false');
+            }
+
+      - name: Exit Early (Fork Repository)
+        if: steps.check-context.outputs.is-fork == 'true'
+        run: |
+          echo "🔄 Invoked from a fork. This will trigger the main automation later."
+          echo "✅ Fork workflow completed successfully"
+          exit 0
+
+      - name: Checkout Repository
+        if: steps.check-context.outputs.should-run-automation == 'true'
+        uses: actions/checkout@v4
+
+      - name: Repository Automation
+        if: steps.check-context.outputs.should-run-automation == 'true'
+        uses: thenets/repo-automation@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          custom-github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          dry-run: ${{ github.event.inputs.dry-run || 'false' }}
+          
+          # Enable all features for comprehensive testing
+          accepted-releases: '["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "2.0", "2.1", "2.2", "devel", "main"]'
+          accepted-backports: '["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "2.0", "2.1", "2.2", "main"]'
+          enable-feature-branch: true
+          stale-days: 1
+
+      - name: Post Results Summary
+        if: steps.check-context.outputs.should-run-automation == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const eventType = context.eventName;
+            const action = context.payload.action || 'none';
+            const number = context.payload.pull_request?.number || context.payload.issue?.number || 'N/A';
+            
+            console.log(`📊 Repository Automation Summary`);
+            console.log(`Event: ${eventType}.${action}`);
+            console.log(`Number: ${number}`);
+            console.log(`Repository: ${context.repo.owner}/${context.repo.repo}`);
+            
+            if (eventType === 'workflow_run') {
+              const workflowRun = context.payload.workflow_run;
+              console.log(`Triggered by: ${workflowRun.name}`);
+              console.log(`Head branch: ${workflowRun.head_branch}`);
+              console.log(`Conclusion: ${workflowRun.conclusion}`);
+            }
+            
+            await core.summary
+              .addHeading('🤖 Repository Automation Complete')
+              .addRaw(`**Event**: \`${eventType}.${action}\``)
+              .addRaw(`\n**Target**: ${eventType === 'issues' ? 'Issue' : 'PR'} #${number}`)
+              .addRaw(`\n**Repository**: \`${context.repo.owner}/${context.repo.repo}\``)
+              .addRaw(eventType === 'workflow_run' ? `\n**Source**: Fork trigger workflow` : `\n**Source**: Direct ${eventType} event`)
+              .write();
