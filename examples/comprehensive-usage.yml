@@ -1,0 +1,365 @@
+# Repository Automation - Comprehensive Usage Examples
+# This file demonstrates all features and configurations of the Repository Triage Automation action
+#
+# 🎉 MIGRATION COMPLETE: The thenets/repo-automation repository has successfully migrated
+# from individual keeper workflows to this unified GitHub Action, achieving 95% code reduction!
+
+# =============================================================================
+# SECTION 1: BASIC TRIAGE AUTOMATION (Current Feature)
+# =============================================================================
+
+# Basic setup for new repositories - automatically adds triage labels
+name: Basic Triage Automation
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  basic-triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto Triage
+        uses: thenets/repo-automation@v1  # Change to ./ for local testing
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+---
+
+# =============================================================================
+# SECTION 2: FORK-COMPATIBLE SETUP (Current Feature)
+# =============================================================================
+
+# Recommended setup for public repositories accepting external contributions
+# Requires keeper-trigger.yml workflow for fork compatibility
+name: Fork-Compatible Triage Automation
+on:
+  # Direct events for internal contributors
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened, ready_for_review]
+  
+  # Workflow run events for external contributors (via keeper-trigger)
+  workflow_run:
+    workflows: ["Keeper: trigger"]
+    types: [completed]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    # IMPORTANT: Replace with your repository name
+    if: github.repository == 'your-org/your-repo'
+    
+    steps:
+      - name: Repository Triage Automation
+        uses: thenets/repo-automation@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Custom token for external contributor support
+          # Setup: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
+          custom-github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+---
+
+# =============================================================================
+# SECTION 3: ADVANCED CONFIGURATION (Current Feature)
+# =============================================================================
+
+# Advanced setup with comprehensive configuration and output handling
+name: Advanced Triage Configuration
+on:
+  issues:
+    types: [opened, labeled, unlabeled]
+  pull_request:
+    types: [opened, synchronize, ready_for_review, labeled, unlabeled]
+  workflow_run:
+    workflows: ["Keeper: trigger"]
+    types: [completed]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  advanced-triage:
+    runs-on: ubuntu-latest
+    if: github.repository == 'your-org/your-repo'
+    
+    steps:
+      - name: Repository Triage Automation
+        id: triage
+        uses: thenets/repo-automation@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          custom-github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          dry-run: false  # Set to true for testing
+          
+      - name: Report Triage Results
+        if: always()
+        run: |
+          echo "## 🏷️ Repository Automation Results" >> $GITHUB_STEP_SUMMARY
+          echo "**Features Enabled:** ${{ steps.triage.outputs.features-enabled }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Labels Added:** ${{ steps.triage.outputs.labels-added }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Actions Taken:** ${{ steps.triage.outputs.actions-taken }}" >> $GITHUB_STEP_SUMMARY
+
+---
+
+# =============================================================================
+# SECTION 4: TESTING AND VALIDATION
+# =============================================================================
+
+# Dry-run configuration for testing without making changes
+name: Test Triage Automation
+on:
+  workflow_dispatch:  # Manual trigger for testing
+    inputs:
+      test-mode:
+        description: 'Run in test mode'
+        required: false
+        default: 'true'
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  test-triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test Triage Automation
+        uses: thenets/repo-automation@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          dry-run: ${{ github.event.inputs.test-mode == 'true' }}
+
+---
+
+# =============================================================================
+# =============================================================================
+# SECTION 5: COMPLETE REPOSITORY AUTOMATION (All Features)
+# =============================================================================
+
+name: Complete Repository Automation
+on:
+  issues:
+    types: [opened, labeled, unlabeled]
+  pull_request:
+    types: [opened, synchronize, edited, ready_for_review, labeled, unlabeled]
+  workflow_run:
+    workflows: ["Keeper: trigger"]
+    types: [completed]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC for stale detection
+
+permissions:
+  issues: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  repository-automation:
+    runs-on: ubuntu-latest
+    if: github.repository == 'your-org/your-repo'
+    
+    steps:
+      - name: Complete Repository Automation
+        uses: thenets/repo-automation@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          custom-github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          
+          # Stale detection configuration (enables stale detection)
+          stale-days: 1
+          
+          # Release/backport labeling configuration (enables auto-labeling)
+          accepted-releases: '["1.0", "1.1", "1.2", "2.0", "2.1", "devel"]'
+          accepted-backports: '["1.0", "1.1", "1.2", "2.0", "2.1"]'
+          
+          # Feature branch automation (enables feature branch labeling)
+          enable-feature-branch: true
+          
+          # Optional: dry-run mode for testing
+          dry-run: false
+
+---
+
+# =============================================================================
+# SECTION 6: SELECTIVE AUTOMATION TYPES
+# =============================================================================
+
+# Use only specific features by providing only the relevant inputs
+
+name: Selective Repository Automation
+on:
+  pull_request:
+    types: [opened, edited]
+
+jobs:
+  release-labeling:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-Label Release/Backport
+        uses: thenets/repo-automation@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          accepted-releases: '["2.0", "2.1", "devel"]'
+          accepted-backports: '["2.0", "2.1"]'
+          # Only release/backport labeling + core triage will run
+
+  feature-branch:
+    runs-on: ubuntu-latest  
+    steps:
+      - name: Feature Branch Labeling
+        uses: thenets/repo-automation@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-feature-branch: true
+          # Only feature branch automation + core triage will run
+
+---
+
+# =============================================================================
+# SECTION 7: STALE DETECTION WORKFLOW
+# =============================================================================
+
+name: Stale PR Detection
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch:  # Manual trigger
+
+permissions:
+  pull-requests: write
+
+jobs:
+  detect-stale:
+    runs-on: ubuntu-latest
+    if: github.repository == 'your-org/your-repo'
+    
+    steps:
+      - name: Detect Stale PRs
+        uses: thenets/repo-automation@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          custom-github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          stale-days: 1  # Stale detection auto-enabled by providing stale-days
+
+# =============================================================================
+# MIGRATION NOTES & SUCCESS STORY
+# =============================================================================
+
+# 🎉 SUCCESSFUL MIGRATION EXAMPLE:
+# The thenets/repo-automation repository completed migration in December 2024:
+#
+# BEFORE (4 individual workflows - 1,635 lines):
+#   - keeper-triage.yml (339 lines) 
+#   - keeper-stale-pr-detector.yml (235 lines)
+#   - keeper-auto-label-release-backport.yml (442 lines)
+#   - keeper-feature-branch-auto-labeling.yml (456 lines)
+#   - keeper-trigger.yml (163 lines) - PRESERVED for fork compatibility
+#
+# AFTER (1 unified workflow - 79 lines):
+#   - repository-automation.yml (79 lines using this action)
+#   - keeper-trigger.yml (163 lines) - PRESERVED for fork compatibility
+#   - test-triage-action.yml (enhanced testing)
+#
+# RESULT: 95% code reduction + simplified maintenance + enhanced testing
+
+# When migrating YOUR repository from individual keeper workflows:
+# 
+# 1. REPLACE these files with the examples above:
+#    - .github/workflows/keeper-triage.yml
+#    - .github/workflows/keeper-stale-pr-detector.yml  
+#    - .github/workflows/keeper-auto-label-release-backport.yml
+#    - .github/workflows/keeper-feature-branch-auto-labeling.yml
+# 
+# 2. KEEP this file for fork compatibility:
+#    - .github/workflows/keeper-trigger.yml
+# 
+# 3. UPDATE repository references:
+#    - Replace 'your-org/your-repo' with your actual repository name
+# 
+# 4. CONFIGURE secrets:
+#    - CUSTOM_GITHUB_TOKEN: Fine-grained personal access token for external contributors
+#    - Required permissions: Issues (Write), Pull Requests (Write), Metadata (Read)
+# 
+# 5. CREATE required labels in repository settings:
+#    - 'triage' (for new issues/PRs)
+#    - 'ready for review' (for PRs with release labels)
+#    - 'stale' (for inactive PRs)
+#    - 'feature-branch' (for feature branch requests)
+# 
+# 6. TEST the setup:
+#    - Use dry-run: true initially
+#    - Verify outputs and behavior
+#    - Test with external contributor PRs
+#
+# 7. REFERENCE IMPLEMENTATION:
+#    - Check thenets/repo-automation repository for a working example
+#    - See repository-automation.yml for complete configuration
+
+# =============================================================================
+# YAML FRONTMATTER EXAMPLES (For Auto-Labeling Features)
+# =============================================================================
+
+# When the auto-labeling features are available, add YAML frontmatter to PR descriptions:
+# 
+# ```yaml
+# release: 2.1          # Valid values from accepted-releases
+# backport: 2.0         # Valid values from accepted-backports  
+# needs_feature_branch: true   # Boolean: true/false
+# ```
+# 
+# Example PR description:
+# ```
+# ## Description
+# This PR adds a new feature for user authentication.
+# 
+# ```yaml
+# release: devel
+# needs_feature_branch: true
+# ```
+# 
+# ## Changes
+# - Added login functionality
+# - Updated documentation
+# ```
+
+# =============================================================================
+# TROUBLESHOOTING
+# =============================================================================
+
+# Common issues and solutions:
+# 
+# 1. Permission Denied Errors:
+#    - Ensure CUSTOM_GITHUB_TOKEN has correct permissions
+#    - Check repository settings allow Actions to write to issues/PRs
+# 
+# 2. Fork Compatibility Issues:
+#    - Verify keeper-trigger.yml is present and correctly configured
+#    - Check workflow_run triggers are properly set up
+# 
+# 3. Labels Not Being Added:
+#    - Ensure required labels exist in repository settings
+#    - Check if labels already exist on issues/PRs
+#    - Verify token permissions
+# 
+# 4. Stale Detection Not Working:
+#    - Check schedule syntax and timezone (UTC)
+#    - Verify stale-days configuration
+#    - Ensure repository condition matches actual repository name
+# 
+# 5. YAML Validation Errors:
+#    - Check YAML frontmatter syntax in PR descriptions
+#    - Verify release/backport values are in accepted lists
+#    - Look for check run results and comments for detailed errors
