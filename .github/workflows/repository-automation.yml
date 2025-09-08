@@ -1,0 +1,51 @@
+---
+name: Complete Repository Automation
+# Fork-compatible automation for repository triage, labeling, and management
+
+on:
+  # Fork compatibility via workflow_run (triggered by repository-automation-trigger.yml)
+  workflow_run:
+    workflows: ["Repository Automation: Trigger"]
+    types: [completed]
+  
+  # Scheduled events for stale detection
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: 'PR number to process (optional)'
+        required: false
+        type: string
+      dry-run:
+        description: 'Dry run mode (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  issues: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  automation:
+    runs-on: ubuntu-latest
+    # IMPORTANT: This repository reference gets updated by the test setup
+    if: github.repository == 'dednets/repo-automation-test'
+    
+    steps:
+      - name: Repository Automation
+        uses: thenets/repo-automation@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          custom-github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          dry-run: ${{ github.event.inputs.dry-run || 'false' }}
+          
+          # Enable all features for comprehensive testing
+          accepted-releases: '["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "2.0", "2.1", "2.2", "devel", "main"]'
+          accepted-backports: '["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "2.0", "2.1", "2.2", "main"]'
+          enable-feature-branch: true
+          stale-days: 1
+
